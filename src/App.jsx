@@ -27,7 +27,7 @@ import {
 // ==========================================
 // 👇 ここをあなたの設定に書き換えてください
 // ==========================================
-const firebaseConfig = {
+const manualConfig = {
   apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
