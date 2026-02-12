@@ -21,7 +21,7 @@ import {
 } from 'firebase/auth';
 import { 
   Hash, Send, LogOut, Github, Chrome, AlertCircle, 
-  Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, Sparkles, Heart
+  Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, Sparkles, Heart, Bot
 } from 'lucide-react';
 
 // ==========================================
@@ -66,6 +66,20 @@ try {
 const appId = isConfigValid(manualConfig) 
   ? 'class-hub-production' 
   : (typeof __app_id !== 'undefined' ? __app_id.replace(/[\/\.]/g, '_') : 'class-hub-production');
+
+// 🤖 AIからの話題リスト
+const aiTopics = [
+  "今日のお昼ご飯、何食べた？🍚",
+  "最近ハマってるYouTubeチャンネルは？📺",
+  "もし100万円もらえたら何に使う？💰",
+  "今週末の予定は？📅",
+  "おすすめのスマホアプリ教えて！📱",
+  "最近あった面白いこと🤣",
+  "好きな教科・苦手な教科は？📚",
+  "最近聴いてる音楽は？🎵",
+  "テスト勉強の進み具合どう？📝",
+  "犬派？猫派？🐶🐱"
+];
 
 const App = () => {
   if (!auth || !db) {
@@ -116,6 +130,28 @@ const App = () => {
       const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'rooms'));
       const unsubscribe = onSnapshot(q, (snapshot) => {
         const roomList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        
+        // --- 🤖 1日1個のAIルームを自動追加 ---
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+        const topicIndex = (today.getFullYear() + today.getMonth() + today.getDate()) % aiTopics.length;
+        const aiRoomId = `ai-room-${todayStr}`;
+
+        if (!roomList.some(r => r.id === aiRoomId)) {
+          roomList.push({
+            id: aiRoomId,
+            topic: `🤖 今日の話題: ${aiTopics[topicIndex]}`,
+            createdBy: "AIアシスタント",
+            creatorId: "ai-system",
+            createdAt: { 
+              toMillis: () => new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime(),
+              toDate: () => new Date(today.getFullYear(), today.getMonth(), today.getDate())
+            },
+            isAi: true
+          });
+        }
+        // -------------------------------------
+
         roomList.sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
         setRooms(roomList);
       }, (err) => {
@@ -299,16 +335,16 @@ const App = () => {
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                 
                 <h3 className="font-bold text-lg text-gray-800 flex items-center gap-3 relative z-10">
-                  <span className="bg-blue-50 p-3 rounded-full text-blue-500 group-hover:bg-blue-500 group-hover:text-white transition-colors">
-                    <MessageSquare size={20} />
+                  <span className={`p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
+                    {room.isAi ? <Bot size={20} /> : <MessageSquare size={20} />}
                   </span>
                   {room.topic}
                 </h3>
                 
-                {/* 👇 ここに部屋の作成日時を表示 */}
+                {/* 👇 ここに部屋の作成日時を表示 (色を濃くしました) */}
                 <div className="ml-14 mt-2 flex flex-col gap-0.5">
                   <p className="text-xs text-gray-400 font-bold">Created by {room.createdBy}</p>
-                  <p className="text-[10px] text-gray-300 font-medium flex items-center gap-1">
+                  <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1">
                     {room.createdAt?.toDate ? room.createdAt.toDate().toLocaleString('ja-JP', { 
                       year: 'numeric', month: 'short', day: 'numeric', 
                       hour: '2-digit', minute: '2-digit' 
@@ -316,7 +352,7 @@ const App = () => {
                   </p>
                 </div>
                 
-                {room.creatorId === user.uid && (
+                {room.creatorId === user.uid && !room.isAi && (
                   <button 
                     onClick={async (e) => { e.stopPropagation(); if(window.confirm("本当に消しちゃう？")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', room.id)); }} 
                     className="absolute bottom-6 right-6 text-gray-300 hover:text-red-400 bg-white p-2 rounded-full hover:bg-red-50 transition-all shadow-sm z-20"
@@ -348,27 +384,27 @@ const App = () => {
         </div>
       </header>
 
-      {/* 👇 space-y-2 でメッセージ同士の間隔を短くしました */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-2 max-w-3xl mx-auto w-full">
+      {/* 👇 space-y-0.5 でメッセージ同士の間隔をさらに狭くしました */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-0.5 max-w-3xl mx-auto w-full">
         {messages.map((msg, index) => {
           const isMe = msg.userId === user.uid;
           
           return (
-            <div key={msg.id} className="flex gap-3 group items-start pt-1">
+            <div key={msg.id} className="flex gap-2 group items-start">
               {msg.userPhoto ? (
-                <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0 mt-1" alt="" />
+                <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0" alt="" />
               ) : (
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md border-2 border-white font-bold text-xs shrink-0 mt-1 ${isMe ? 'bg-indigo-300' : 'bg-blue-300'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md border-2 border-white font-bold text-xs shrink-0 ${isMe ? 'bg-indigo-300' : 'bg-blue-300'}`}>
                   {msg.user.slice(0,1)}
                 </div>
               )}
               
               <div className="flex flex-col max-w-[85%]">
-                {/* 👇 名前の横にメッセージの送信時刻を追加しました */}
-                <span className="text-[10px] font-bold text-gray-400 mb-1 ml-1 flex items-baseline gap-2">
+                {/* 👇 名前の横にメッセージの送信時刻と日付を追加しました */}
+                <span className="text-[10px] font-bold text-gray-400 mb-0.5 ml-1 flex items-baseline gap-2">
                   <span>{msg.user} {isMe && <span className="bg-blue-100 text-blue-600 px-1.5 rounded-md ml-1">自分</span>}</span>
                   <span className="text-[9px] font-normal text-gray-400">
-                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''}
+                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
                   </span>
                 </span>
                 
