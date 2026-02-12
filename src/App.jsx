@@ -27,13 +27,14 @@ import {
 // ==========================================
 // 👇 あなたのFirebase設定を貼り付けてください
 // ==========================================
-const manualConfig = {
-  apiKey: "ここにapiKeyを貼り付け",
-  authDomain: "ここにauthDomainを貼り付け",
-  projectId: "ここにprojectIdを貼り付け",
-  storageBucket: "ここにstorageBucketを貼り付け",
-  messagingSenderId: "ここにmessagingSenderIdを貼り付け",
-  appId: "ここにappIdを貼り付け"
+const firebaseConfig = {
+  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+  authDomain: "classhub-d8c5f.firebaseapp.com",
+  projectId: "classhub-d8c5f",
+  storageBucket: "classhub-d8c5f.firebasestorage.app",
+  messagingSenderId: "1015431116758",
+  appId: "1:1015431116758:web:f647345b8610eea810d677",
+  measurementId: "G-TLD75RQYVX"
 };
 // ==========================================
 
