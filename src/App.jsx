@@ -8,6 +8,7 @@ import {
   addDoc, 
   serverTimestamp, 
   deleteDoc, 
+  updateDoc, // 👈 追加：データを更新するための関数
   doc 
 } from 'firebase/firestore';
 import { 
@@ -22,14 +23,15 @@ import {
 import { 
   Hash, Send, LogOut, Github, Chrome, AlertCircle, 
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, 
-  Sparkles, Heart, Bot, Info, Bell, Reply, X
+  Sparkles, Heart, Bot, Info, Bell, Reply, X,
+  ChevronLeft, ChevronRight, Calendar, Smile // 👈 Smileアイコンを追加
 } from 'lucide-react';
 
 // ==========================================
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -84,10 +86,13 @@ const aiTopics = [
 
 // 📢 アップデート履歴
 const appUpdates = [
-  { id: 1, date: "2/12", text: "メッセージに「返信」できるようになりました！💬" },
-  { id: 2, date: "2/12", text: "最新のアップデート内容が見れるようになりました✨" },
-  { id: 3, date: "2/11", text: "ルーム一覧で最新のメッセージがチラ見できるようになりました👀" }
+  { id: 1, date: "2/12", text: "メッセージに「リアクション（絵文字）」をつけられるようになりました！😆" },
+  { id: 2, date: "2/12", text: "ルームが「日付ごと」に分かれるようになりました！🗓️" },
+  { id: 3, date: "2/12", text: "メッセージに「返信」できるようになりました！💬" }
 ];
+
+// リアクションで使える絵文字リスト
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
 const App = () => {
   if (!auth || !db) {
@@ -113,10 +118,13 @@ const App = () => {
   const [newRoomTopic, setNewRoomTopic] = useState("");
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [error, setError] = useState(null);
-  
-  // 👇 返信先を記録するステートを追加
   const [replyingTo, setReplyingTo] = useState(null);
   
+  // 👇 リアクションパレットを開いているメッセージのIDを保存
+  const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
+  
+  const [selectedDate, setSelectedDate] = useState(new Date());
+
   const messagesEndRef = useRef(null);
 
   const currentMessages = allMessages
@@ -131,9 +139,9 @@ const App = () => {
     scrollToBottom();
   }, [currentMessages.length]);
 
-  // ルームが変わったら返信状態をリセットする
   useEffect(() => {
     setReplyingTo(null);
+    setActiveReactionMsgId(null); // ルームが変わったら閉じる
   }, [currentRoom]);
 
   useEffect(() => {
@@ -152,7 +160,7 @@ const App = () => {
         const roomList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
         const today = new Date();
-        const todayStr = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
         const topicIndex = (today.getFullYear() + today.getMonth() + today.getDate()) % aiTopics.length;
         const aiRoomId = `ai-room-${todayStr}`;
 
@@ -191,6 +199,40 @@ const App = () => {
     } catch (e) { console.error(e); }
   }, [user]);
 
+  const getDateString = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+
+  const selectedDateStr = getDateString(selectedDate);
+  const todayStr = getDateString(new Date());
+
+  const getRoomDateStr = (room) => {
+    if (room.createdAt?.toDate) {
+      return getDateString(room.createdAt.toDate());
+    } else if (room.createdAt?.toMillis) {
+      return getDateString(new Date(room.createdAt.toMillis()));
+    }
+    return todayStr; 
+  };
+
+  const filteredRooms = rooms.filter(room => getRoomDateStr(room) === selectedDateStr);
+
+  const changeDate = (days) => {
+    const newDate = new Date(selectedDate);
+    newDate.setDate(newDate.getDate() + days);
+    setSelectedDate(newDate);
+  };
+
+  const getDisplayDate = () => {
+    if (selectedDateStr === todayStr) return "今日のルーム";
+    
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (selectedDateStr === getDateString(yesterday)) return "昨日のルーム";
+
+    return `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
+  };
+
   const handleLogin = async (loginMethod) => {
     setError(null);
     try {
@@ -214,6 +256,7 @@ const App = () => {
         creatorId: user.uid,
         createdAt: serverTimestamp()
       });
+      setSelectedDate(new Date()); 
       setCurrentRoom({ id: docRef.id, topic: newRoomTopic });
       setNewRoomTopic("");
       setIsCreatingRoom(false);
@@ -226,17 +269,16 @@ const App = () => {
     e.preventDefault();
     if (!inputText.trim()) return;
     try {
-      // 👇 送信するデータを作成
       const messageData = {
         roomId: currentRoom.id,
         userId: user.uid,
         user: user.displayName || `ゲスト`,
         userPhoto: user.photoURL,
         content: inputText,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        reactions: {} // 初期状態は空のリアクション
       };
 
-      // 👇 もし返信中なら、返信先のデータも一緒に追加して送る
       if (replyingTo) {
         messageData.replyTo = {
           id: replyingTo.id,
@@ -247,7 +289,7 @@ const App = () => {
 
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), messageData);
       setInputText("");
-      setReplyingTo(null); // 送信後は返信状態をリセット
+      setReplyingTo(null);
     } catch (e) {
       setError("送信失敗... " + e.message);
     }
@@ -256,6 +298,38 @@ const App = () => {
   const deleteMessage = async (id) => {
     if(window.confirm("このメッセージを消しちゃう？")) {
       await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'messages', id));
+    }
+  };
+
+  // 👇 リアクションを追加・削除する機能
+  const toggleReaction = async (messageId, emoji) => {
+    try {
+      const msgRef = doc(db, 'artifacts', appId, 'public', 'data', 'messages', messageId);
+      const msg = allMessages.find(m => m.id === messageId);
+      if (!msg) return;
+
+      const currentReactions = msg.reactions || {};
+      const usersWhoReacted = currentReactions[emoji] || [];
+      
+      let newUsers;
+      if (usersWhoReacted.includes(user.uid)) {
+        // すでに押していれば削除（取り消し）
+        newUsers = usersWhoReacted.filter(uid => uid !== user.uid);
+      } else {
+        // まだ押していなければ追加
+        newUsers = [...usersWhoReacted, user.uid];
+      }
+
+      const newReactions = { ...currentReactions, [emoji]: newUsers };
+      
+      // 0人になった絵文字はデータを綺麗にするために消す
+      if (newUsers.length === 0) {
+        delete newReactions[emoji];
+      }
+
+      await updateDoc(msgRef, { reactions: newReactions });
+    } catch (err) {
+      console.error("リアクションエラー:", err);
     }
   };
 
@@ -314,7 +388,7 @@ const App = () => {
   if (!currentRoom) {
     return (
       <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans">
-        <header className="bg-white/80 backdrop-blur-md p-5 px-6 flex justify-between items-center sticky top-0 z-10 shadow-sm border-b border-white">
+        <header className="bg-white/80 backdrop-blur-md p-5 px-6 flex justify-between items-center sticky top-0 z-20 shadow-sm border-b border-white">
           <div className="flex items-center gap-2 font-black text-xl text-gray-800">
             <span className="bg-blue-100 p-2 rounded-full text-blue-500"><Hash size={20} /></span>
             ClassHub
@@ -324,10 +398,9 @@ const App = () => {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full relative">
           
-          {/* 👇 アップデート情報のお知らせ枠を追加しました */}
-          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-3xl mb-8 border border-yellow-100 shadow-sm relative overflow-hidden">
+          <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-3xl mb-6 border border-yellow-100 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-white/40 rounded-full blur-xl -mr-4 -mt-4"></div>
             <h3 className="text-sm font-black text-yellow-800 flex items-center gap-2 mb-3 relative z-10">
               <span className="bg-yellow-200 text-yellow-700 p-1.5 rounded-full"><Bell size={14} /></span>
@@ -343,16 +416,42 @@ const App = () => {
             </ul>
           </div>
 
+          <div className="flex justify-between items-center mb-6 bg-white p-2 rounded-[2rem] shadow-sm border border-blue-50 relative z-10">
+            <button 
+              onClick={() => changeDate(-1)} 
+              className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            
+            <div className="flex flex-col items-center justify-center pointer-events-none">
+              <div className="flex items-center gap-2 text-gray-800 font-black text-base">
+                <Calendar size={18} className="text-blue-500" />
+                {getDisplayDate()}
+              </div>
+              <span className="text-[10px] text-gray-400 font-bold tracking-widest mt-0.5">
+                {selectedDateStr.replace(/-/g, '/')}
+              </span>
+            </div>
+
+            <button 
+              onClick={() => changeDate(1)} 
+              disabled={selectedDateStr === todayStr}
+              className={`p-3 rounded-full transition-all active:scale-95 ${selectedDateStr === todayStr ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+            >
+              <ChevronRight size={24} />
+            </button>
+          </div>
+
           <div className="flex justify-between items-end mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">ルームをえらんでね</h2>
-              <p className="text-xs text-gray-400 font-bold mt-1 ml-1">今日はどんな話をする？💭</p>
+              <p className="text-xs text-gray-500 font-bold ml-1">この日の話題に参加しよう！</p>
             </div>
             <button 
               onClick={() => setIsCreatingRoom(!isCreatingRoom)} 
-              className="bg-blue-500 text-white px-6 py-3 rounded-[2rem] text-sm font-bold flex items-center gap-2 shadow-lg hover:shadow-blue-200 hover:-translate-y-1 transition-all active:scale-95"
+              className="bg-blue-500 text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
             >
-              <Plus size={20} /> 作る
+              <Plus size={18} /> 作る
             </button>
           </div>
 
@@ -372,14 +471,14 @@ const App = () => {
           )}
 
           <div className="grid gap-4">
-            {rooms.length === 0 && (
+            {filteredRooms.length === 0 && (
                <div className="text-center py-20 opacity-50">
-                 <MessageSquare size={60} className="mx-auto mb-4 text-blue-200" />
-                 <p className="font-bold text-gray-400">ルームがまだありません💦</p>
+                 <Calendar size={60} className="mx-auto mb-4 text-gray-300" />
+                 <p className="font-bold text-gray-400">この日のルームはありません💬</p>
                </div>
             )}
             
-            {rooms.map(room => {
+            {filteredRooms.map(room => {
               const roomRecentMsgs = allMessages
                 .filter(msg => msg.roomId === room.id)
                 .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
@@ -442,8 +541,8 @@ const App = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans">
-      <header className="bg-white/80 backdrop-blur-md p-4 px-6 flex justify-between items-center shadow-sm sticky top-0 z-10 border-b border-white">
+    <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans" onClick={() => setActiveReactionMsgId(null)}>
+      <header className="bg-white/80 backdrop-blur-md p-4 px-6 flex justify-between items-center shadow-sm sticky top-0 z-30 border-b border-white">
         <div className="flex items-center gap-4">
           <button onClick={() => setCurrentRoom(null)} className="hover:bg-blue-50 text-blue-500 p-3 rounded-full transition-colors">
             <ArrowLeft size={24} />
@@ -457,22 +556,22 @@ const App = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-0.5 max-w-3xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 space-y-0.5 max-w-3xl mx-auto w-full pb-20">
         {currentMessages.map((msg, index) => {
           const isMe = msg.userId === user.uid;
           
           return (
-            <div key={msg.id} className="flex gap-2 group items-start">
+            <div key={msg.id} className="flex gap-2 group items-start mb-2">
               {msg.userPhoto ? (
-                <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0" alt="" />
+                <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0 mt-3" alt="" />
               ) : (
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md border-2 border-white font-bold text-xs shrink-0 ${isMe ? 'bg-indigo-300' : 'bg-blue-300'}`}>
+                <div className={`w-8 h-8 mt-3 rounded-full flex items-center justify-center text-white shadow-md border-2 border-white font-bold text-xs shrink-0 ${isMe ? 'bg-indigo-300' : 'bg-blue-300'}`}>
                   {msg.user.slice(0,1)}
                 </div>
               )}
               
               <div className="flex flex-col max-w-[85%] min-w-0">
-                <span className="text-[10px] font-bold text-gray-400 mb-0.5 ml-1 flex items-baseline gap-2">
+                <span className="text-[10px] font-bold text-gray-400 mb-0.5 ml-1 flex items-baseline gap-2 mt-1">
                   <span className="truncate">{msg.user} {isMe && <span className="bg-blue-100 text-blue-600 px-1.5 rounded-md ml-1">自分</span>}</span>
                   <span className="text-[9px] font-normal text-gray-400 shrink-0">
                     {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
@@ -485,7 +584,6 @@ const App = () => {
                     ? 'bg-white border-2 border-blue-100 text-gray-800 rounded-tl-none' 
                     : 'bg-white text-gray-700 rounded-tl-none border-2 border-transparent'}
                 `}>
-                  {/* 👇 もし返信データがあったら、引用を表示する */}
                   {msg.replyTo && (
                     <div className={`mb-2 text-[10px] p-2 rounded-xl line-clamp-2 ${isMe ? 'bg-blue-50/50 text-blue-600/80 border-l-2 border-blue-400' : 'bg-gray-50 text-gray-500 border-l-2 border-gray-300'}`}>
                       <span className="font-bold">{msg.replyTo.user}</span>: {msg.replyTo.content}
@@ -494,13 +592,66 @@ const App = () => {
                   {msg.content}
                 </div>
                 
-                {/* 👇 返信ボタンと削除ボタン */}
-                <div className="flex gap-3 mt-1 ml-2 opacity-0 group-hover:opacity-100 transition-all self-start">
-                  <button onClick={() => setReplyingTo(msg)} className="text-[10px] text-gray-400 hover:text-blue-500 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-sm border border-gray-100">
+                {/* 👇 追加：メッセージについているリアクションの表示 */}
+                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                  <div className="flex gap-1.5 mt-1.5 ml-1 flex-wrap">
+                    {Object.entries(msg.reactions).map(([emoji, uids]) => {
+                      if (uids.length === 0) return null;
+                      const hasReacted = uids.includes(user.uid);
+                      return (
+                        <button 
+                          key={emoji}
+                          onClick={(e) => { e.stopPropagation(); toggleReaction(msg.id, emoji); }}
+                          className={`text-xs px-2 py-0.5 rounded-full border ${hasReacted ? 'bg-blue-50 border-blue-300 text-blue-600' : 'bg-white border-gray-200 text-gray-500'} shadow-sm flex items-center gap-1 transition-all hover:bg-gray-50 hover:scale-105 active:scale-95`}
+                        >
+                          <span>{emoji}</span>
+                          <span className="font-bold text-[10px]">{uids.length}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                {/* 👇 返信・リアクション追加・削除ボタンのエリア */}
+                <div className="flex gap-3 mt-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-all self-start relative z-10">
+                  <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className="text-[10px] text-gray-400 hover:text-blue-500 flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-100">
                     <Reply size={10}/> 返信
                   </button>
+                  
+                  {/* リアクションボタン＆パレット */}
+                  <div className="relative">
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setActiveReactionMsgId(activeReactionMsgId === msg.id ? null : msg.id);
+                      }}
+                      className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-md shadow-sm border transition-colors ${activeReactionMsgId === msg.id ? 'bg-yellow-50 text-yellow-600 border-yellow-200' : 'bg-white text-gray-400 border-gray-100 hover:text-yellow-500'}`}
+                    >
+                      <Smile size={10}/> 反応
+                    </button>
+                    
+                    {/* 絵文字パレット（ボタンを押したときに出現） */}
+                    {activeReactionMsgId === msg.id && (
+                      <div className="absolute bottom-full left-0 mb-2 flex bg-white shadow-xl rounded-full px-3 py-2 gap-3 border border-gray-100 z-50 animate-in fade-in slide-in-from-bottom-2">
+                        {REACTION_EMOJIS.map(emoji => (
+                          <button 
+                            key={emoji} 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleReaction(msg.id, emoji);
+                              setActiveReactionMsgId(null); // 選んだら閉じる
+                            }} 
+                            className="hover:scale-125 hover:-translate-y-1 transition-all text-xl"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {isMe && (
-                    <button onClick={() => deleteMessage(msg.id)} className="text-[10px] text-gray-300 hover:text-red-400 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-sm border border-gray-100">
+                    <button onClick={(e) => { e.stopPropagation(); deleteMessage(msg.id); }} className="text-[10px] text-gray-300 hover:text-red-400 flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-100">
                       <Trash2 size={10}/> 削除
                     </button>
                   )}
@@ -522,12 +673,9 @@ const App = () => {
         <div ref={messagesEndRef} />
       </main>
 
-      {/* 👇 入力フォームのエリアをグループ化 */}
-      <div className="bg-white border-t border-blue-50 flex flex-col sticky bottom-0 z-20 shadow-[0_-5px_20px_rgba(0,0,0,0.02)]">
-        
-        {/* 👇 返信先が選ばれている時の表示（UI） */}
+      <div className="bg-white border-t border-blue-50 flex flex-col fixed bottom-0 left-0 right-0 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] sm:relative">
         {replyingTo && (
-          <div className="px-4 py-2 bg-blue-50/80 flex items-center justify-between text-xs border-b border-blue-100">
+          <div className="px-4 py-2 bg-blue-50/80 flex items-center justify-between text-xs border-b border-blue-100 backdrop-blur-sm">
             <div className="flex items-center gap-2 text-blue-700 overflow-hidden">
               <Reply size={12} className="shrink-0" />
               <span className="font-bold shrink-0">{replyingTo.user} に返信 :</span>
@@ -539,7 +687,7 @@ const App = () => {
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="p-4 flex gap-2">
+        <form onSubmit={handleSendMessage} className="p-4 flex gap-2 max-w-3xl mx-auto w-full">
           <input 
             value={inputText} 
             onChange={e => setInputText(e.target.value)}
@@ -550,7 +698,6 @@ const App = () => {
             <Send size={20} className="ml-0.5" />
           </button>
         </form>
-
       </div>
     </div>
   );
