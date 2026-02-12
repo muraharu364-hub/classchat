@@ -25,14 +25,14 @@ import {
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, 
   Sparkles, Heart, Bot, Info, Bell, Reply, X,
   ChevronLeft, ChevronRight, Calendar, Smile, 
-  ImagePlus, XCircle, Loader2 // 👈 画像機能用のアイコンを追加
+  ImagePlus, XCircle, Loader2 
 } from 'lucide-react';
 
 // ==========================================
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+ apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -90,7 +90,6 @@ const appUpdates = [
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
 
-// 👇 画像サイズを自動で小さくする関数（データ容量を節約！）
 const compressImage = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -100,7 +99,7 @@ const compressImage = (file) => {
       img.src = event.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const MAX_WIDTH = 800; // 最大幅を800pxに制限
+        const MAX_WIDTH = 800;
         const MAX_HEIGHT = 800;
         let width = img.width;
         let height = img.height;
@@ -120,7 +119,7 @@ const compressImage = (file) => {
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70%の画質で圧縮
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
         resolve(dataUrl);
       };
       img.onerror = (err) => reject(err);
@@ -132,7 +131,7 @@ const compressImage = (file) => {
 const App = () => {
   if (!auth || !db) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-blue-50 p-6 text-center font-sans text-gray-700">
+      <div className="h-screen flex flex-col items-center justify-center bg-blue-50 p-6 text-center font-sans text-gray-700 w-full overflow-hidden">
         <div className="bg-white p-10 rounded-[3rem] shadow-xl max-w-md w-full border-4 border-white">
           <AlertCircle size={64} className="text-blue-300 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-800 mb-2">設定が必要です☁️</h2>
@@ -157,10 +156,9 @@ const App = () => {
   const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // 👇 画像機能のための新しい状態（State）
   const [selectedImage, setSelectedImage] = useState(null);
   const [isCompressing, setIsCompressing] = useState(false);
-  const [zoomedImage, setZoomedImage] = useState(null); // 画像を拡大表示するため
+  const [zoomedImage, setZoomedImage] = useState(null);
   const fileInputRef = useRef(null);
 
   const messagesEndRef = useRef(null);
@@ -179,7 +177,7 @@ const App = () => {
 
   useEffect(() => {
     setReplyingTo(null);
-    setSelectedImage(null); // ルームが変わったら画像もクリア
+    setSelectedImage(null);
     setActiveReactionMsgId(null);
   }, [currentRoom]);
 
@@ -302,12 +300,10 @@ const App = () => {
     }
   };
 
-  // 👇 画像を選択した時の処理
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    // 画像ファイルかチェック
     if (!file.type.startsWith('image/')) {
       alert("画像ファイルを選択してください！");
       return;
@@ -322,15 +318,12 @@ const App = () => {
       alert("画像の処理に失敗しました😢");
     } finally {
       setIsCompressing(false);
-      // 同じ画像を再度選べるようにリセット
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  // 👇 メッセージ送信時の処理（画像を一緒に送る）
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    // テキストも画像もない場合は送信しない
     if (!inputText.trim() && !selectedImage) return;
 
     try {
@@ -340,7 +333,7 @@ const App = () => {
         user: user.displayName || `ゲスト`,
         userPhoto: user.photoURL,
         content: inputText,
-        imageUrl: selectedImage || null, // 画像データを追加！
+        imageUrl: selectedImage || null,
         createdAt: serverTimestamp(),
         reactions: {}
       };
@@ -350,7 +343,7 @@ const App = () => {
           id: replyingTo.id,
           user: replyingTo.user,
           content: replyingTo.content,
-          hasImage: !!replyingTo.imageUrl // 元メッセージが画像だったかも記録
+          hasImage: !!replyingTo.imageUrl
         };
       }
 
@@ -405,7 +398,7 @@ const App = () => {
 
   if (error === "PERMISSION_DENIED") {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-red-50 p-6 text-center font-sans">
+      <div className="h-screen flex flex-col items-center justify-center bg-red-50 p-6 text-center font-sans w-full overflow-hidden">
         <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md w-full">
           <Lock size={64} className="text-red-400 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-gray-800 mb-2">カギがかかっています🔒</h1>
@@ -417,7 +410,7 @@ const App = () => {
 
   if (!user) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 p-6 font-sans">
+      <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 p-6 font-sans w-full overflow-hidden">
         <div className="bg-white/80 backdrop-blur-xl p-10 rounded-[3rem] shadow-[0_20px_60px_rgba(100,149,237,0.2)] w-full max-w-sm text-center border-4 border-white">
           <div className="bg-gradient-to-tr from-blue-400 to-indigo-400 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
             <Heart size={48} className="text-white fill-white animate-pulse" />
@@ -455,9 +448,10 @@ const App = () => {
     );
   }
 
+  // 👇 ルーム一覧画面（全体を overflow-x-hidden にして横スクロールを防ぐ）
   if (!currentRoom) {
     return (
-      <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans">
+      <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans">
         <header className="bg-white/80 backdrop-blur-md p-5 px-6 flex justify-between items-center sticky top-0 z-20 shadow-sm border-b border-white">
           <div className="flex items-center gap-2 font-black text-xl text-gray-800">
             <span className="bg-blue-100 p-2 rounded-full text-blue-500"><Hash size={20} /></span>
@@ -468,7 +462,7 @@ const App = () => {
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 max-w-2xl mx-auto w-full relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 max-w-2xl mx-auto w-full relative">
           
           <div className="bg-gradient-to-r from-yellow-50 to-orange-50 p-4 rounded-3xl mb-6 border border-yellow-100 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 w-16 h-16 bg-white/40 rounded-full blur-xl -mr-4 -mt-4"></div>
@@ -519,7 +513,7 @@ const App = () => {
             </div>
             <button 
               onClick={() => setIsCreatingRoom(!isCreatingRoom)} 
-              className="bg-blue-500 text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all"
+              className="bg-blue-500 text-white px-5 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all shrink-0"
             >
               <Plus size={18} /> 作る
             </button>
@@ -527,15 +521,15 @@ const App = () => {
 
           {isCreatingRoom && (
             <div className="bg-white p-2 rounded-[2.5rem] shadow-xl mb-8 animate-in fade-in slide-in-from-top-4 border-4 border-blue-50">
-              <form onSubmit={handleCreateRoom} className="flex gap-2 p-2">
+              <form onSubmit={handleCreateRoom} className="flex gap-2 p-2 w-full">
                 <input 
                   autoFocus
                   value={newRoomTopic}
                   onChange={(e) => setNewRoomTopic(e.target.value)}
                   placeholder="話題を入力（例：お昼なに食べた？）" 
-                  className="flex-1 bg-gray-50 rounded-[2rem] px-6 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all font-bold text-gray-700"
+                  className="flex-1 min-w-0 bg-gray-50 rounded-[2rem] px-4 sm:px-6 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all font-bold text-gray-700"
                 />
-                <button type="submit" className="bg-blue-500 text-white px-6 rounded-[2rem] font-bold hover:bg-blue-600 transition-colors">OK</button>
+                <button type="submit" className="bg-blue-500 text-white px-4 sm:px-6 shrink-0 rounded-[2rem] font-bold hover:bg-blue-600 transition-colors">OK</button>
               </form>
             </div>
           )}
@@ -559,23 +553,24 @@ const App = () => {
                 <div 
                   key={room.id} 
                   onClick={() => setCurrentRoom(room)} 
-                  className="group bg-white p-6 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-blue-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center"
+                  className="group bg-white p-5 sm:p-6 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-blue-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center w-full"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                   
-                  <h3 className="font-bold text-lg text-gray-800 flex items-center gap-3 relative z-10">
-                    <span className={`p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
+                  {/* 👇 ルーム名の部分もはみ出さないように修正 */}
+                  <h3 className="font-bold text-base sm:text-lg text-gray-800 flex items-center gap-3 relative z-10 w-full min-w-0">
+                    <span className={`shrink-0 p-2.5 sm:p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
                       {room.isAi ? <Bot size={20} /> : <MessageSquare size={20} />}
                     </span>
-                    <span className="truncate pr-8">{room.topic}</span>
+                    <span className="truncate flex-1 pr-2 leading-tight">{room.topic}</span>
                   </h3>
                   
-                  <div className="mt-4 ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
+                  <div className="mt-4 ml-12 sm:ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
                     {roomRecentMsgs.length > 0 ? (
                       roomRecentMsgs.map(msg => (
-                        <div key={msg.id} className="text-[11px] flex gap-2 items-start">
+                        <div key={msg.id} className="text-[11px] flex gap-2 items-start w-full min-w-0">
                           <span className="font-bold text-gray-500 shrink-0">{msg.user}:</span>
-                          <span className="text-gray-600 line-clamp-1 break-all">
+                          <span className="text-gray-600 truncate flex-1">
                             {msg.imageUrl && !msg.content ? '📸 画像を送信しました' : msg.content}
                           </span>
                         </div>
@@ -585,9 +580,9 @@ const App = () => {
                     )}
                   </div>
                   
-                  <div className="ml-14 mt-3 flex flex-col gap-0.5 relative z-10">
-                    <p className="text-xs text-gray-400 font-bold">Created by {room.createdBy}</p>
-                    <p className="text-[10px] text-gray-500 font-medium flex items-center gap-1">
+                  <div className="ml-12 sm:ml-14 mt-3 flex flex-col gap-0.5 relative z-10">
+                    <p className="text-[10px] sm:text-xs text-gray-400 font-bold">Created by {room.createdBy}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-500 font-medium flex items-center gap-1">
                       {room.createdAt?.toDate ? room.createdAt.toDate().toLocaleString('ja-JP', { 
                         year: 'numeric', month: 'short', day: 'numeric', 
                         hour: '2-digit', minute: '2-digit' 
@@ -598,7 +593,7 @@ const App = () => {
                   {room.creatorId === user.uid && !room.isAi && (
                     <button 
                       onClick={async (e) => { e.stopPropagation(); if(window.confirm("本当に消しちゃう？")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rooms', room.id)); }} 
-                      className="absolute bottom-6 right-6 text-gray-300 hover:text-red-400 bg-white p-2 rounded-full hover:bg-red-50 transition-all shadow-sm z-20"
+                      className="absolute bottom-4 sm:bottom-6 right-4 sm:right-6 text-gray-300 hover:text-red-400 bg-white p-2 rounded-full hover:bg-red-50 transition-all shadow-sm z-20"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -612,10 +607,10 @@ const App = () => {
     );
   }
 
+  // 👇 ルーム内画面（全体を overflow-x-hidden にして横スクロールを防ぐ）
   return (
-    <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans" onClick={() => setActiveReactionMsgId(null)}>
+    <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans relative" onClick={() => setActiveReactionMsgId(null)}>
       
-      {/* 👇 画像拡大表示（モーダル） */}
       {zoomedImage && (
         <div 
           className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
@@ -632,21 +627,22 @@ const App = () => {
         </div>
       )}
 
-      <header className="bg-white/80 backdrop-blur-md p-4 px-6 flex justify-between items-center shadow-sm sticky top-0 z-30 border-b border-white">
-        <div className="flex items-center gap-4">
-          <button onClick={() => setCurrentRoom(null)} className="hover:bg-blue-50 text-blue-500 p-3 rounded-full transition-colors">
+      {/* 👇 ヘッダーのレイアウト崩れ（横に押し広げられる問題）を修正 */}
+      <header className="bg-white/80 backdrop-blur-md p-3 sm:p-4 px-3 sm:px-6 flex items-center shadow-sm sticky top-0 z-30 border-b border-white w-full">
+        <div className="flex items-center gap-2 sm:gap-4 w-full min-w-0">
+          <button onClick={() => setCurrentRoom(null)} className="shrink-0 hover:bg-blue-50 text-blue-500 p-2 sm:p-3 rounded-full transition-colors">
             <ArrowLeft size={24} />
           </button>
-          <div className="flex-1 min-w-0 pr-4">
-            <h2 className="font-bold text-lg text-gray-800 leading-none truncate">{currentRoom.topic}</h2>
-            <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mt-1">
+          <div className="flex-1 min-w-0 flex flex-col justify-center pr-2">
+            <h2 className="font-bold text-base sm:text-lg text-gray-800 leading-tight truncate w-full">{currentRoom.topic}</h2>
+            <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mt-0.5">
               <Users size={12} /> 会話中
             </span>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-0.5 max-w-3xl mx-auto w-full pb-20">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 space-y-0.5 max-w-3xl mx-auto w-full pb-24">
         
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm font-bold mb-4 flex items-center justify-between shadow-sm mx-2 mt-2">
@@ -659,7 +655,7 @@ const App = () => {
           const isMe = msg.userId === user.uid;
           
           return (
-            <div key={msg.id} className="flex gap-2 group items-start mb-2">
+            <div key={msg.id} className="flex gap-2 group items-start mb-2 w-full max-w-full">
               {msg.userPhoto ? (
                 <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0 mt-3" alt="" />
               ) : (
@@ -668,7 +664,7 @@ const App = () => {
                 </div>
               )}
               
-              <div className="flex flex-col max-w-[85%] min-w-0">
+              <div className="flex flex-col max-w-[85%] min-w-0 w-full">
                 <span className="text-[10px] font-bold text-gray-400 mb-0.5 ml-1 flex items-baseline gap-2 mt-1">
                   <span className="truncate">{msg.user} {isMe && <span className="bg-blue-100 text-blue-600 px-1.5 rounded-md ml-1">自分</span>}</span>
                   <span className="text-[9px] font-normal text-gray-400 shrink-0">
@@ -677,19 +673,17 @@ const App = () => {
                 </span>
                 
                 <div className={`
-                  px-4 py-3 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed relative break-words flex flex-col
+                  px-3 sm:px-4 py-2.5 sm:py-3 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed relative break-words flex flex-col w-fit max-w-full
                   ${isMe 
                     ? 'bg-white border-2 border-blue-100 text-gray-800 rounded-tl-none' 
                     : 'bg-white text-gray-700 rounded-tl-none border-2 border-transparent'}
                 `}>
-                  {/* 返信元の表示 */}
                   {msg.replyTo && (
                     <div className={`mb-2 text-[10px] p-2 rounded-xl line-clamp-2 ${isMe ? 'bg-blue-50/50 text-blue-600/80 border-l-2 border-blue-400' : 'bg-gray-50 text-gray-500 border-l-2 border-gray-300'}`}>
                       <span className="font-bold">{msg.replyTo.user}</span>: {msg.replyTo.hasImage ? '📸 画像' : msg.replyTo.content}
                     </div>
                   )}
                   
-                  {/* 👇 画像の表示エリア */}
                   {msg.imageUrl && (
                     <img 
                       src={msg.imageUrl} 
@@ -700,11 +694,11 @@ const App = () => {
                     />
                   )}
 
-                  {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
+                  {msg.content && <div className="whitespace-pre-wrap word-break break-all">{msg.content}</div>}
                 </div>
                 
                 {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                  <div className="flex gap-1.5 mt-1.5 ml-1 flex-wrap">
+                  <div className="flex gap-1.5 mt-1.5 ml-1 flex-wrap max-w-full">
                     {Object.entries(msg.reactions).map(([emoji, uids]) => {
                       if (uids.length === 0) return null;
                       const hasReacted = uids.includes(user.uid);
@@ -722,7 +716,7 @@ const App = () => {
                   </div>
                 )}
                 
-                <div className="flex gap-3 mt-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-all self-start relative z-10">
+                <div className="flex gap-2 sm:gap-3 mt-1.5 ml-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all self-start relative z-10 flex-wrap">
                   <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className="text-[10px] text-gray-400 hover:text-blue-500 flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-100">
                     <Reply size={10}/> 返信
                   </button>
@@ -739,7 +733,7 @@ const App = () => {
                     </button>
                     
                     {activeReactionMsgId === msg.id && (
-                      <div className="absolute bottom-full left-0 mb-2 flex bg-white shadow-xl rounded-full px-3 py-2 gap-3 border border-gray-100 z-50 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="absolute bottom-full left-0 sm:left-auto mb-2 flex bg-white shadow-xl rounded-full px-3 py-2 gap-3 border border-gray-100 z-50 animate-in fade-in slide-in-from-bottom-2">
                         {REACTION_EMOJIS.map(emoji => (
                           <button 
                             key={emoji} 
@@ -780,26 +774,23 @@ const App = () => {
         <div ref={messagesEndRef} />
       </main>
 
-      {/* 👇 入力エリアの全体 */}
-      <div className="bg-white border-t border-blue-50 flex flex-col fixed bottom-0 left-0 right-0 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] sm:relative">
+      <div className="bg-white border-t border-blue-50 flex flex-col fixed bottom-0 left-0 right-0 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] sm:relative w-full">
         
-        {/* 返信元のプレビュー */}
         {replyingTo && (
-          <div className="px-4 py-2 bg-blue-50/80 flex items-center justify-between text-xs border-b border-blue-100 backdrop-blur-sm">
-            <div className="flex items-center gap-2 text-blue-700 overflow-hidden">
+          <div className="px-4 py-2 bg-blue-50/80 flex items-center justify-between text-xs border-b border-blue-100 backdrop-blur-sm w-full min-w-0">
+            <div className="flex items-center gap-2 text-blue-700 overflow-hidden min-w-0">
               <Reply size={12} className="shrink-0" />
               <span className="font-bold shrink-0">{replyingTo.user} に返信 :</span>
-              <span className="truncate opacity-80">{replyingTo.hasImage ? '📸 画像' : replyingTo.content}</span>
+              <span className="truncate opacity-80 flex-1">{replyingTo.hasImage ? '📸 画像' : replyingTo.content}</span>
             </div>
-            <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-blue-200 rounded-full text-blue-500 transition-colors">
+            <button onClick={() => setReplyingTo(null)} className="shrink-0 p-1 hover:bg-blue-200 rounded-full text-blue-500 transition-colors ml-2">
               <X size={14} />
             </button>
           </div>
         )}
 
-        {/* 👇 選択した画像のプレビュー */}
         {selectedImage && (
-          <div className="px-4 py-3 bg-gray-50 flex items-start justify-between border-b border-gray-100">
+          <div className="px-4 py-3 bg-gray-50 flex items-start justify-between border-b border-gray-100 w-full">
             <div className="relative inline-block">
               <img src={selectedImage} alt="preview" className="h-16 w-auto rounded-lg border border-gray-200 shadow-sm object-contain bg-white" />
               <button 
@@ -812,9 +803,8 @@ const App = () => {
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="p-3 flex gap-2 items-center max-w-3xl mx-auto w-full">
+        <form onSubmit={handleSendMessage} className="p-2 sm:p-3 flex gap-2 items-center max-w-3xl mx-auto w-full">
           
-          {/* 👇 画像添付ボタン */}
           <input 
             type="file" 
             ref={fileInputRef} 
@@ -834,16 +824,17 @@ const App = () => {
           <input 
             value={inputText} 
             onChange={e => setInputText(e.target.value)}
-            placeholder={replyingTo ? "返信を入力..." : selectedImage ? "画像にコメントを追加..." : "メッセージを入力..."} 
-            className="flex-1 bg-gray-50 rounded-[2rem] px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all border border-gray-100 font-medium"
+            placeholder={replyingTo ? "返信を入力..." : selectedImage ? "画像にコメント..." : "メッセージを入力..."} 
+            className="flex-1 min-w-0 bg-gray-50 rounded-[2rem] px-4 sm:px-5 py-2.5 sm:py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all border border-gray-100 font-medium"
             disabled={isCompressing}
           />
           <button 
             type="submit" 
             disabled={(!inputText.trim() && !selectedImage) || isCompressing} 
-            className="bg-blue-500 text-white p-3 flex-shrink-0 rounded-full hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none transition-all active:scale-95"
+            className="bg-blue-500 text-white p-2.5 sm:p-3 flex-shrink-0 rounded-full hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none transition-all active:scale-95"
           >
-            <Send size={20} className="ml-0.5" />
+            <Send size={18} className="ml-0.5 sm:hidden" />
+            <Send size={20} className="ml-0.5 hidden sm:block" />
           </button>
         </form>
       </div>
