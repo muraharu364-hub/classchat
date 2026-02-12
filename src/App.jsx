@@ -20,7 +20,7 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
-  Hash, Send, LogOut, Github, Chrome, User, AlertCircle, 
+  Hash, Send, LogOut, Github, Chrome, AlertCircle, 
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, Sparkles, Heart
 } from 'lucide-react';
 
@@ -28,7 +28,7 @@ import {
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+   apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -213,7 +213,6 @@ const App = () => {
     );
   }
 
-  // 1. ログイン画面（ブルーベース）
   if (!user) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 p-6 font-sans">
@@ -242,7 +241,6 @@ const App = () => {
     );
   }
 
-  // 2. ロビー画面（丸みを帯びたデザイン）
   if (!currentRoom) {
     return (
       <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans">
@@ -296,7 +294,7 @@ const App = () => {
               <div 
                 key={room.id} 
                 onClick={() => setCurrentRoom(room)} 
-                className="group bg-white p-6 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-blue-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden"
+                className="group bg-white p-6 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-blue-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center"
               >
                 <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                 
@@ -306,7 +304,17 @@ const App = () => {
                   </span>
                   {room.topic}
                 </h3>
-                <p className="text-xs text-gray-400 mt-2 font-bold ml-14">Created by {room.createdBy}</p>
+                
+                {/* 👇 ここに部屋の作成日時を表示 */}
+                <div className="ml-14 mt-2 flex flex-col gap-0.5">
+                  <p className="text-xs text-gray-400 font-bold">Created by {room.createdBy}</p>
+                  <p className="text-[10px] text-gray-300 font-medium flex items-center gap-1">
+                    {room.createdAt?.toDate ? room.createdAt.toDate().toLocaleString('ja-JP', { 
+                      year: 'numeric', month: 'short', day: 'numeric', 
+                      hour: '2-digit', minute: '2-digit' 
+                    }) : '作成中...'}
+                  </p>
+                </div>
                 
                 {room.creatorId === user.uid && (
                   <button 
@@ -324,7 +332,6 @@ const App = () => {
     );
   }
 
-  // 3. チャット画面（左アイコン・掲示板スタイル）
   return (
     <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans">
       <header className="bg-white/80 backdrop-blur-md p-4 px-6 flex justify-between items-center shadow-sm sticky top-0 z-10 border-b border-white">
@@ -341,13 +348,13 @@ const App = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 max-w-3xl mx-auto w-full">
-        {messages.map(msg => {
+      {/* 👇 space-y-2 でメッセージ同士の間隔を短くしました */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-2 max-w-3xl mx-auto w-full">
+        {messages.map((msg, index) => {
           const isMe = msg.userId === user.uid;
+          
           return (
-            // 常に左並び（flex-row）で、アイコンも左に表示
-            <div key={msg.id} className="flex gap-3 group items-start">
-              {/* アイコン（小さく丸く） */}
+            <div key={msg.id} className="flex gap-3 group items-start pt-1">
               {msg.userPhoto ? (
                 <img src={msg.userPhoto} className="w-8 h-8 rounded-full shadow-md border-2 border-white shrink-0 mt-1" alt="" />
               ) : (
@@ -357,13 +364,16 @@ const App = () => {
               )}
               
               <div className="flex flex-col max-w-[85%]">
-                <span className="text-[10px] font-bold text-gray-400 mb-1 ml-1">
-                  {msg.user} {isMe && <span className="bg-blue-100 text-blue-600 px-1.5 rounded-md ml-1">自分</span>}
+                {/* 👇 名前の横にメッセージの送信時刻を追加しました */}
+                <span className="text-[10px] font-bold text-gray-400 mb-1 ml-1 flex items-baseline gap-2">
+                  <span>{msg.user} {isMe && <span className="bg-blue-100 text-blue-600 px-1.5 rounded-md ml-1">自分</span>}</span>
+                  <span className="text-[9px] font-normal text-gray-400">
+                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : ''}
+                  </span>
                 </span>
                 
-                {/* 吹き出し: 自分と相手で色を変えて区別 */}
                 <div className={`
-                  p-4 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed relative
+                  px-4 py-3 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed relative
                   ${isMe 
                     ? 'bg-white border-2 border-blue-100 text-gray-800 rounded-tl-none' 
                     : 'bg-white text-gray-700 rounded-tl-none border-2 border-transparent'}
