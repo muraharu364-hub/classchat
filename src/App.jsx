@@ -8,7 +8,7 @@ import {
   addDoc, 
   serverTimestamp, 
   deleteDoc, 
-  updateDoc, // 👈 追加：データを更新するための関数
+  updateDoc, 
   doc 
 } from 'firebase/firestore';
 import { 
@@ -24,14 +24,15 @@ import {
   Hash, Send, LogOut, Github, Chrome, AlertCircle, 
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, 
   Sparkles, Heart, Bot, Info, Bell, Reply, X,
-  ChevronLeft, ChevronRight, Calendar, Smile // 👈 Smileアイコンを追加
+  ChevronLeft, ChevronRight, Calendar, Smile, 
+  ImagePlus, XCircle, Loader2 // 👈 画像機能用のアイコンを追加
 } from 'lucide-react';
 
 // ==========================================
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -41,12 +42,10 @@ const manualConfig = {
 };
 // ==========================================
 
-// 設定チェック
 const isConfigValid = (config) => {
   return config && config.apiKey && config.apiKey !== "ここにapiKeyを貼り付け";
 };
 
-// 安全に初期化
 let app = null;
 let auth = null;
 let db = null;
@@ -70,7 +69,6 @@ const appId = isConfigValid(manualConfig)
   ? 'class-hub-production' 
   : (typeof __app_id !== 'undefined' ? __app_id.replace(/[\/\.]/g, '_') : 'class-hub-production');
 
-// 🤖 AIからの話題リスト
 const aiTopics = [
   "今日のお昼ご飯、何食べた？🍚",
   "最近ハマってるYouTubeチャンネルは？📺",
@@ -84,15 +82,52 @@ const aiTopics = [
   "犬派？猫派？🐶🐱"
 ];
 
-// 📢 アップデート履歴
 const appUpdates = [
-  { id: 1, date: "2/12", text: "メッセージに「リアクション（絵文字）」をつけられるようになりました！😆" },
-  { id: 2, date: "2/12", text: "ルームが「日付ごと」に分かれるようになりました！🗓️" },
-  { id: 3, date: "2/12", text: "メッセージに「返信」できるようになりました！💬" }
+  { id: 1, date: "2/12", text: "メッセージに「画像🖼️」を添付できるようになりました！" },
+  { id: 2, date: "2/12", text: "メッセージに「リアクション😆」をつけられるようになりました！" },
+  { id: 3, date: "2/12", text: "ルームが「日付ごと🗓️」に分かれるようになりました！" }
 ];
 
-// リアクションで使える絵文字リスト
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
+
+// 👇 画像サイズを自動で小さくする関数（データ容量を節約！）
+const compressImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800; // 最大幅を800pxに制限
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7); // 70%の画質で圧縮
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
 
 const App = () => {
   if (!auth || !db) {
@@ -119,11 +154,14 @@ const App = () => {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [error, setError] = useState(null);
   const [replyingTo, setReplyingTo] = useState(null);
-  
-  // 👇 リアクションパレットを開いているメッセージのIDを保存
   const [activeReactionMsgId, setActiveReactionMsgId] = useState(null);
-  
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // 👇 画像機能のための新しい状態（State）
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState(null); // 画像を拡大表示するため
+  const fileInputRef = useRef(null);
 
   const messagesEndRef = useRef(null);
 
@@ -141,7 +179,8 @@ const App = () => {
 
   useEffect(() => {
     setReplyingTo(null);
-    setActiveReactionMsgId(null); // ルームが変わったら閉じる
+    setSelectedImage(null); // ルームが変わったら画像もクリア
+    setActiveReactionMsgId(null);
   }, [currentRoom]);
 
   useEffect(() => {
@@ -225,11 +264,9 @@ const App = () => {
 
   const getDisplayDate = () => {
     if (selectedDateStr === todayStr) return "今日のルーム";
-    
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     if (selectedDateStr === getDateString(yesterday)) return "昨日のルーム";
-
     return `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日`;
   };
 
@@ -265,9 +302,37 @@ const App = () => {
     }
   };
 
+  // 👇 画像を選択した時の処理
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    // 画像ファイルかチェック
+    if (!file.type.startsWith('image/')) {
+      alert("画像ファイルを選択してください！");
+      return;
+    }
+
+    setIsCompressing(true);
+    try {
+      const compressedBase64 = await compressImage(file);
+      setSelectedImage(compressedBase64);
+    } catch (err) {
+      console.error("画像圧縮エラー:", err);
+      alert("画像の処理に失敗しました😢");
+    } finally {
+      setIsCompressing(false);
+      // 同じ画像を再度選べるようにリセット
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  // 👇 メッセージ送信時の処理（画像を一緒に送る）
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    // テキストも画像もない場合は送信しない
+    if (!inputText.trim() && !selectedImage) return;
+
     try {
       const messageData = {
         roomId: currentRoom.id,
@@ -275,23 +340,32 @@ const App = () => {
         user: user.displayName || `ゲスト`,
         userPhoto: user.photoURL,
         content: inputText,
+        imageUrl: selectedImage || null, // 画像データを追加！
         createdAt: serverTimestamp(),
-        reactions: {} // 初期状態は空のリアクション
+        reactions: {}
       };
 
       if (replyingTo) {
         messageData.replyTo = {
           id: replyingTo.id,
           user: replyingTo.user,
-          content: replyingTo.content
+          content: replyingTo.content,
+          hasImage: !!replyingTo.imageUrl // 元メッセージが画像だったかも記録
         };
       }
 
       await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'messages'), messageData);
+      
       setInputText("");
+      setSelectedImage(null);
       setReplyingTo(null);
-    } catch (e) {
-      setError("送信失敗... " + e.message);
+      setError(null);
+    } catch (err) {
+      if (err.message.includes('Document size')) {
+        setError("ごめんね、画像サイズが大きすぎます！別の画像にしてね😢");
+      } else {
+        setError("送信失敗... " + err.message);
+      }
     }
   };
 
@@ -301,7 +375,6 @@ const App = () => {
     }
   };
 
-  // 👇 リアクションを追加・削除する機能
   const toggleReaction = async (messageId, emoji) => {
     try {
       const msgRef = doc(db, 'artifacts', appId, 'public', 'data', 'messages', messageId);
@@ -313,16 +386,13 @@ const App = () => {
       
       let newUsers;
       if (usersWhoReacted.includes(user.uid)) {
-        // すでに押していれば削除（取り消し）
         newUsers = usersWhoReacted.filter(uid => uid !== user.uid);
       } else {
-        // まだ押していなければ追加
         newUsers = [...usersWhoReacted, user.uid];
       }
 
       const newReactions = { ...currentReactions, [emoji]: newUsers };
       
-      // 0人になった絵文字はデータを綺麗にするために消す
       if (newUsers.length === 0) {
         delete newReactions[emoji];
       }
@@ -505,7 +575,9 @@ const App = () => {
                       roomRecentMsgs.map(msg => (
                         <div key={msg.id} className="text-[11px] flex gap-2 items-start">
                           <span className="font-bold text-gray-500 shrink-0">{msg.user}:</span>
-                          <span className="text-gray-600 line-clamp-1 break-all">{msg.content}</span>
+                          <span className="text-gray-600 line-clamp-1 break-all">
+                            {msg.imageUrl && !msg.content ? '📸 画像を送信しました' : msg.content}
+                          </span>
                         </div>
                       ))
                     ) : (
@@ -542,6 +614,24 @@ const App = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#F0F4F8] font-sans" onClick={() => setActiveReactionMsgId(null)}>
+      
+      {/* 👇 画像拡大表示（モーダル） */}
+      {zoomedImage && (
+        <div 
+          className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setZoomedImage(null)}
+        >
+          <button className="absolute top-6 right-6 text-white hover:text-gray-300 bg-black/40 p-2 rounded-full transition-colors">
+            <X size={24} />
+          </button>
+          <img 
+            src={zoomedImage} 
+            alt="zoomed" 
+            className="max-w-full max-h-[90vh] rounded-lg object-contain shadow-2xl" 
+          />
+        </div>
+      )}
+
       <header className="bg-white/80 backdrop-blur-md p-4 px-6 flex justify-between items-center shadow-sm sticky top-0 z-30 border-b border-white">
         <div className="flex items-center gap-4">
           <button onClick={() => setCurrentRoom(null)} className="hover:bg-blue-50 text-blue-500 p-3 rounded-full transition-colors">
@@ -557,6 +647,14 @@ const App = () => {
       </header>
 
       <main className="flex-1 overflow-y-auto p-4 space-y-0.5 max-w-3xl mx-auto w-full pb-20">
+        
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-2xl text-sm font-bold mb-4 flex items-center justify-between shadow-sm mx-2 mt-2">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="p-1 hover:bg-red-100 rounded-full"><X size={16}/></button>
+          </div>
+        )}
+
         {currentMessages.map((msg, index) => {
           const isMe = msg.userId === user.uid;
           
@@ -584,15 +682,27 @@ const App = () => {
                     ? 'bg-white border-2 border-blue-100 text-gray-800 rounded-tl-none' 
                     : 'bg-white text-gray-700 rounded-tl-none border-2 border-transparent'}
                 `}>
+                  {/* 返信元の表示 */}
                   {msg.replyTo && (
                     <div className={`mb-2 text-[10px] p-2 rounded-xl line-clamp-2 ${isMe ? 'bg-blue-50/50 text-blue-600/80 border-l-2 border-blue-400' : 'bg-gray-50 text-gray-500 border-l-2 border-gray-300'}`}>
-                      <span className="font-bold">{msg.replyTo.user}</span>: {msg.replyTo.content}
+                      <span className="font-bold">{msg.replyTo.user}</span>: {msg.replyTo.hasImage ? '📸 画像' : msg.replyTo.content}
                     </div>
                   )}
-                  {msg.content}
+                  
+                  {/* 👇 画像の表示エリア */}
+                  {msg.imageUrl && (
+                    <img 
+                      src={msg.imageUrl} 
+                      alt="添付画像" 
+                      onClick={() => setZoomedImage(msg.imageUrl)}
+                      className={`max-w-full rounded-xl cursor-zoom-in hover:opacity-95 transition-opacity border border-black/5 ${msg.content ? 'mb-2' : 'mb-0'}`} 
+                      style={{ maxHeight: '240px', objectFit: 'contain', backgroundColor: '#f9fafb' }}
+                    />
+                  )}
+
+                  {msg.content && <div className="whitespace-pre-wrap">{msg.content}</div>}
                 </div>
                 
-                {/* 👇 追加：メッセージについているリアクションの表示 */}
                 {msg.reactions && Object.keys(msg.reactions).length > 0 && (
                   <div className="flex gap-1.5 mt-1.5 ml-1 flex-wrap">
                     {Object.entries(msg.reactions).map(([emoji, uids]) => {
@@ -612,13 +722,11 @@ const App = () => {
                   </div>
                 )}
                 
-                {/* 👇 返信・リアクション追加・削除ボタンのエリア */}
                 <div className="flex gap-3 mt-1.5 ml-2 opacity-0 group-hover:opacity-100 transition-all self-start relative z-10">
                   <button onClick={(e) => { e.stopPropagation(); setReplyingTo(msg); }} className="text-[10px] text-gray-400 hover:text-blue-500 flex items-center gap-1 bg-white px-2 py-1 rounded-md shadow-sm border border-gray-100">
                     <Reply size={10}/> 返信
                   </button>
                   
-                  {/* リアクションボタン＆パレット */}
                   <div className="relative">
                     <button 
                       onClick={(e) => {
@@ -630,7 +738,6 @@ const App = () => {
                       <Smile size={10}/> 反応
                     </button>
                     
-                    {/* 絵文字パレット（ボタンを押したときに出現） */}
                     {activeReactionMsgId === msg.id && (
                       <div className="absolute bottom-full left-0 mb-2 flex bg-white shadow-xl rounded-full px-3 py-2 gap-3 border border-gray-100 z-50 animate-in fade-in slide-in-from-bottom-2">
                         {REACTION_EMOJIS.map(emoji => (
@@ -639,7 +746,7 @@ const App = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleReaction(msg.id, emoji);
-                              setActiveReactionMsgId(null); // 選んだら閉じる
+                              setActiveReactionMsgId(null);
                             }} 
                             className="hover:scale-125 hover:-translate-y-1 transition-all text-xl"
                           >
@@ -673,13 +780,16 @@ const App = () => {
         <div ref={messagesEndRef} />
       </main>
 
+      {/* 👇 入力エリアの全体 */}
       <div className="bg-white border-t border-blue-50 flex flex-col fixed bottom-0 left-0 right-0 z-40 shadow-[0_-5px_20px_rgba(0,0,0,0.02)] sm:relative">
+        
+        {/* 返信元のプレビュー */}
         {replyingTo && (
           <div className="px-4 py-2 bg-blue-50/80 flex items-center justify-between text-xs border-b border-blue-100 backdrop-blur-sm">
             <div className="flex items-center gap-2 text-blue-700 overflow-hidden">
               <Reply size={12} className="shrink-0" />
               <span className="font-bold shrink-0">{replyingTo.user} に返信 :</span>
-              <span className="truncate opacity-80">{replyingTo.content}</span>
+              <span className="truncate opacity-80">{replyingTo.hasImage ? '📸 画像' : replyingTo.content}</span>
             </div>
             <button onClick={() => setReplyingTo(null)} className="p-1 hover:bg-blue-200 rounded-full text-blue-500 transition-colors">
               <X size={14} />
@@ -687,14 +797,52 @@ const App = () => {
           </div>
         )}
 
-        <form onSubmit={handleSendMessage} className="p-4 flex gap-2 max-w-3xl mx-auto w-full">
+        {/* 👇 選択した画像のプレビュー */}
+        {selectedImage && (
+          <div className="px-4 py-3 bg-gray-50 flex items-start justify-between border-b border-gray-100">
+            <div className="relative inline-block">
+              <img src={selectedImage} alt="preview" className="h-16 w-auto rounded-lg border border-gray-200 shadow-sm object-contain bg-white" />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-2 -right-2 bg-white rounded-full text-red-500 hover:text-red-600 shadow-md transition-transform hover:scale-110"
+              >
+                <XCircle size={20} className="fill-white" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSendMessage} className="p-3 flex gap-2 items-center max-w-3xl mx-auto w-full">
+          
+          {/* 👇 画像添付ボタン */}
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleImageChange} 
+            accept="image/*" 
+            className="hidden" 
+          />
+          <button 
+            type="button" 
+            onClick={() => fileInputRef.current?.click()} 
+            disabled={isCompressing}
+            className={`p-2 rounded-full transition-colors flex-shrink-0 ${isCompressing ? 'text-blue-300 cursor-wait' : 'text-gray-400 hover:text-blue-500 hover:bg-blue-50'}`}
+          >
+            {isCompressing ? <Loader2 size={24} className="animate-spin" /> : <ImagePlus size={24} />}
+          </button>
+
           <input 
             value={inputText} 
             onChange={e => setInputText(e.target.value)}
-            placeholder={replyingTo ? "返信を入力..." : "メッセージを入力..."} 
-            className="flex-1 bg-gray-50 rounded-[2rem] px-6 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all border border-gray-100 font-medium"
+            placeholder={replyingTo ? "返信を入力..." : selectedImage ? "画像にコメントを追加..." : "メッセージを入力..."} 
+            className="flex-1 bg-gray-50 rounded-[2rem] px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200 transition-all border border-gray-100 font-medium"
+            disabled={isCompressing}
           />
-          <button type="submit" disabled={!inputText.trim()} className="bg-blue-500 text-white p-3 rounded-full hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none transition-all active:scale-95">
+          <button 
+            type="submit" 
+            disabled={(!inputText.trim() && !selectedImage) || isCompressing} 
+            className="bg-blue-500 text-white p-3 flex-shrink-0 rounded-full hover:shadow-lg hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:shadow-none transition-all active:scale-95"
+          >
             <Send size={20} className="ml-0.5" />
           </button>
         </form>
