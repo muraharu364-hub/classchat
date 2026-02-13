@@ -25,14 +25,14 @@ import {
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, 
   Sparkles, Heart, Bot, Info, Bell, Reply, X,
   ChevronLeft, ChevronRight, Calendar, Smile, 
-  ImagePlus, XCircle, Loader2 
+  ImagePlus, XCircle, Loader2, Pin // 👈 Pinアイコンを追加
 } from 'lucide-react';
 
 // ==========================================
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+    apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -83,9 +83,9 @@ const aiTopics = [
 ];
 
 const appUpdates = [
-  { id: 1, date: "2/13", text: "長いルーム名が自動でスクロールするようになりました！↔️" },
-  { id: 2, date: "2/13", text: "スマホの「戻る」ボタンで退室できるようになりました！📱" },
-  { id: 3, date: "2/12", text: "メッセージに「画像🖼️」を添付できるようになりました！" }
+  { id: 1, date: "2/13", text: "重要なルームを「ピン留め📌」できるようになりました！" },
+  { id: 2, date: "2/13", text: "長いルーム名が自動でスクロールするようになりました！↔️" },
+  { id: 3, date: "2/13", text: "スマホの「戻る」ボタンで退室できるようになりました！📱" }
 ];
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
@@ -128,9 +128,7 @@ const compressImage = (file) => {
   });
 };
 
-// 👇 自動スクロールタイトルのコンポーネント
 const ScrollingTitle = ({ text, className, containerClass }) => {
-  // 15文字以上ならスクロールさせる
   const isLong = text.length > 15;
 
   if (!isLong) {
@@ -292,7 +290,9 @@ const App = () => {
     return todayStr; 
   };
 
-  const filteredRooms = rooms.filter(room => getRoomDateStr(room) === selectedDateStr);
+  // 👇 固定ルームと、それ以外（日付別）のルームを分ける
+  const pinnedRooms = rooms.filter(room => room.isPinned);
+  const dateSpecificRooms = rooms.filter(room => !room.isPinned && getRoomDateStr(room) === selectedDateStr);
 
   const changeDate = (days) => {
     const newDate = new Date(selectedDate);
@@ -329,7 +329,8 @@ const App = () => {
         topic: newRoomTopic,
         createdBy: user.displayName || "ゲスト",
         creatorId: user.uid,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        isPinned: false // 初期状態はピン留めなし
       });
       setSelectedDate(new Date()); 
       enterRoom({ id: docRef.id, topic: newRoomTopic });
@@ -436,6 +437,19 @@ const App = () => {
     }
   };
 
+  // 👇 ピン留めを切り替える関数
+  const togglePin = async (e, room) => {
+    e.stopPropagation(); // ルーム入室を防ぐ
+    try {
+      const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', room.id);
+      // isPinned の状態を反転させる
+      await updateDoc(roomRef, { isPinned: !room.isPinned });
+    } catch (err) {
+      console.error(err);
+      setError("ピン留めの変更に失敗しました😢");
+    }
+  };
+
   if (error === "PERMISSION_DENIED") {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-red-50 p-6 text-center font-sans w-full overflow-hidden">
@@ -488,11 +502,11 @@ const App = () => {
     );
   }
 
+  // 👇 ルーム一覧画面
   if (!currentRoom) {
     return (
       <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans">
         
-        {/* 👇 スクロールアニメーション用のスタイルを埋め込み */}
         <style>{`
           @keyframes scroll-text {
             0% { transform: translateX(0%); }
@@ -531,14 +545,74 @@ const App = () => {
             </ul>
           </div>
 
+          {/* 👇 ピン留めされたルームのセクション */}
+          {pinnedRooms.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-2 ml-1">
+                <Pin size={16} className="text-red-400 fill-red-400" /> 固定されたルーム
+              </h2>
+              <div className="grid gap-4">
+                {pinnedRooms.map(room => {
+                  const roomRecentMsgs = allMessages
+                    .filter(msg => msg.roomId === room.id)
+                    .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
+                    .slice(0, 3)
+                    .reverse(); 
+
+                  return (
+                    <div 
+                      key={room.id} 
+                      onClick={() => enterRoom(room)} 
+                      className="group bg-white p-5 sm:p-6 rounded-[2.5rem] shadow-md border-2 border-red-100 hover:border-red-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center w-full"
+                    >
+                      {/* 背景装飾 */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
+                      
+                      <div className="flex items-center gap-3 relative z-10 w-full mb-1">
+                        <span className={`shrink-0 p-2.5 sm:p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500' : 'bg-red-50 text-red-500'}`}>
+                          {room.isAi ? <Bot size={20} /> : <MessageSquare size={20} />}
+                        </span>
+                        <ScrollingTitle text={room.topic} className="font-bold text-base sm:text-lg text-gray-800" containerClass="flex-1" />
+                        
+                        {/* 👇 固定解除ボタン（作成者のみ） */}
+                        {room.creatorId === user.uid && (
+                          <button 
+                            onClick={(e) => togglePin(e, room)}
+                            className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-full transition-all"
+                            title="固定を解除"
+                          >
+                            <Pin size={16} className="fill-red-400" />
+                          </button>
+                        )}
+                      </div>
+                      
+                      {/* メッセージプレビュー */}
+                      <div className="mt-4 ml-12 sm:ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
+                        {roomRecentMsgs.length > 0 ? (
+                          roomRecentMsgs.map(msg => (
+                            <div key={msg.id} className="text-[11px] flex gap-2 items-start w-full min-w-0">
+                              <span className="font-bold text-gray-500 shrink-0">{msg.user}:</span>
+                              <span className="text-gray-600 truncate flex-1">
+                                {msg.imageUrl && !msg.content ? '📸 画像' : msg.content}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="text-[11px] text-gray-400 italic">まだメッセージがありません✨</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 👇 日付別ルームナビゲーション */}
           <div className="flex justify-between items-center mb-6 bg-white p-2 rounded-[2rem] shadow-sm border border-blue-50 relative z-10">
-            <button 
-              onClick={() => changeDate(-1)} 
-              className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95"
-            >
+            <button onClick={() => changeDate(-1)} className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95">
               <ChevronLeft size={24} />
             </button>
-            
             <div className="flex flex-col items-center justify-center pointer-events-none">
               <div className="flex items-center gap-2 text-gray-800 font-black text-base">
                 <Calendar size={18} className="text-blue-500" />
@@ -548,12 +622,7 @@ const App = () => {
                 {selectedDateStr.replace(/-/g, '/')}
               </span>
             </div>
-
-            <button 
-              onClick={() => changeDate(1)} 
-              disabled={selectedDateStr === todayStr}
-              className={`p-3 rounded-full transition-all active:scale-95 ${selectedDateStr === todayStr ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
-            >
+            <button onClick={() => changeDate(1)} disabled={selectedDateStr === todayStr} className={`p-3 rounded-full transition-all active:scale-95 ${selectedDateStr === todayStr ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
               <ChevronRight size={24} />
             </button>
           </div>
@@ -586,14 +655,14 @@ const App = () => {
           )}
 
           <div className="grid gap-4">
-            {filteredRooms.length === 0 && (
+            {dateSpecificRooms.length === 0 && (
                <div className="text-center py-20 opacity-50">
                  <Calendar size={60} className="mx-auto mb-4 text-gray-300" />
                  <p className="font-bold text-gray-400">この日のルームはありません💬</p>
                </div>
             )}
             
-            {filteredRooms.map(room => {
+            {dateSpecificRooms.map(room => {
               const roomRecentMsgs = allMessages
                 .filter(msg => msg.roomId === room.id)
                 .sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0))
@@ -608,12 +677,22 @@ const App = () => {
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                   
-                  {/* 👇 自動スクロールタイトルを使用 */}
                   <div className="flex items-center gap-3 relative z-10 w-full mb-1">
                     <span className={`shrink-0 p-2.5 sm:p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
                       {room.isAi ? <Bot size={20} /> : <MessageSquare size={20} />}
                     </span>
                     <ScrollingTitle text={room.topic} className="font-bold text-base sm:text-lg text-gray-800" containerClass="flex-1" />
+                    
+                    {/* 👇 ピン留めボタン（作成者のみ） */}
+                    {room.creatorId === user.uid && (
+                      <button 
+                        onClick={(e) => togglePin(e, room)}
+                        className="text-gray-300 hover:text-red-400 bg-white hover:bg-red-50 p-2 rounded-full transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
+                        title="一番上に固定する"
+                      >
+                        <Pin size={16} />
+                      </button>
+                    )}
                   </div>
                   
                   <div className="mt-4 ml-12 sm:ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
@@ -622,7 +701,7 @@ const App = () => {
                         <div key={msg.id} className="text-[11px] flex gap-2 items-start w-full min-w-0">
                           <span className="font-bold text-gray-500 shrink-0">{msg.user}:</span>
                           <span className="text-gray-600 truncate flex-1">
-                            {msg.imageUrl && !msg.content ? '📸 画像を送信しました' : msg.content}
+                            {msg.imageUrl && !msg.content ? '📸 画像' : msg.content}
                           </span>
                         </div>
                       ))
@@ -662,7 +741,6 @@ const App = () => {
   return (
     <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans relative" onClick={() => setActiveReactionMsgId(null)}>
       
-      {/* 👇 スクロールアニメーション用のスタイルをここにも追加 */}
       <style>{`
         @keyframes scroll-text {
           0% { transform: translateX(0%); }
@@ -695,7 +773,6 @@ const App = () => {
             <ArrowLeft size={24} />
           </button>
           <div className="flex-1 min-w-0 flex flex-col justify-center pr-2">
-            {/* 👇 ルーム内ヘッダーにも自動スクロールを適用 */}
             <ScrollingTitle text={currentRoom.topic} className="font-bold text-base sm:text-lg text-gray-800 leading-tight" containerClass="w-full" />
             <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mt-0.5">
               <Users size={12} /> 会話中
