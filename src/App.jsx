@@ -32,7 +32,7 @@ import {
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
- apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -83,9 +83,9 @@ const aiTopics = [
 ];
 
 const appUpdates = [
-  { id: 1, date: "2/12", text: "メッセージに「画像🖼️」を添付できるようになりました！" },
-  { id: 2, date: "2/12", text: "メッセージに「リアクション😆」をつけられるようになりました！" },
-  { id: 3, date: "2/12", text: "ルームが「日付ごと🗓️」に分かれるようになりました！" }
+  { id: 1, date: "2/13", text: "長いルーム名が自動でスクロールするようになりました！↔️" },
+  { id: 2, date: "2/13", text: "スマホの「戻る」ボタンで退室できるようになりました！📱" },
+  { id: 3, date: "2/12", text: "メッセージに「画像🖼️」を添付できるようになりました！" }
 ];
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'];
@@ -126,6 +126,29 @@ const compressImage = (file) => {
     };
     reader.onerror = (err) => reject(err);
   });
+};
+
+// 👇 自動スクロールタイトルのコンポーネント
+const ScrollingTitle = ({ text, className, containerClass }) => {
+  // 15文字以上ならスクロールさせる
+  const isLong = text.length > 15;
+
+  if (!isLong) {
+    return (
+      <div className={`min-w-0 ${containerClass}`}>
+        <h3 className={`truncate ${className}`}>{text}</h3>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`overflow-hidden ${containerClass}`}>
+      <div className="flex w-max animate-scroll-text">
+        <h3 className={`${className} mr-8`}>{text}</h3>
+        <h3 className={`${className} mr-8`}>{text}</h3>
+      </div>
+    </div>
+  );
 };
 
 const App = () => {
@@ -180,6 +203,23 @@ const App = () => {
     setSelectedImage(null);
     setActiveReactionMsgId(null);
   }, [currentRoom]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentRoom(null);
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const enterRoom = (room) => {
+    setCurrentRoom(room);
+    window.history.pushState({ roomId: room.id }, '', '#room');
+  };
+
+  const leaveRoom = () => {
+    window.history.back();
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -292,7 +332,7 @@ const App = () => {
         createdAt: serverTimestamp()
       });
       setSelectedDate(new Date()); 
-      setCurrentRoom({ id: docRef.id, topic: newRoomTopic });
+      enterRoom({ id: docRef.id, topic: newRoomTopic });
       setNewRoomTopic("");
       setIsCreatingRoom(false);
     } catch (err) {
@@ -448,10 +488,21 @@ const App = () => {
     );
   }
 
-  // 👇 ルーム一覧画面（全体を overflow-x-hidden にして横スクロールを防ぐ）
   if (!currentRoom) {
     return (
       <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans">
+        
+        {/* 👇 スクロールアニメーション用のスタイルを埋め込み */}
+        <style>{`
+          @keyframes scroll-text {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-100%); }
+          }
+          .animate-scroll-text {
+            animation: scroll-text 15s linear infinite;
+          }
+        `}</style>
+
         <header className="bg-white/80 backdrop-blur-md p-5 px-6 flex justify-between items-center sticky top-0 z-20 shadow-sm border-b border-white">
           <div className="flex items-center gap-2 font-black text-xl text-gray-800">
             <span className="bg-blue-100 p-2 rounded-full text-blue-500"><Hash size={20} /></span>
@@ -552,18 +603,18 @@ const App = () => {
               return (
                 <div 
                   key={room.id} 
-                  onClick={() => setCurrentRoom(room)} 
+                  onClick={() => enterRoom(room)} 
                   className="group bg-white p-5 sm:p-6 rounded-[2.5rem] shadow-sm border-2 border-transparent hover:border-blue-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center w-full"
                 >
                   <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                   
-                  {/* 👇 ルーム名の部分もはみ出さないように修正 */}
-                  <h3 className="font-bold text-base sm:text-lg text-gray-800 flex items-center gap-3 relative z-10 w-full min-w-0">
+                  {/* 👇 自動スクロールタイトルを使用 */}
+                  <div className="flex items-center gap-3 relative z-10 w-full mb-1">
                     <span className={`shrink-0 p-2.5 sm:p-3 rounded-full transition-colors ${room.isAi ? 'bg-purple-50 text-purple-500 group-hover:bg-purple-500 group-hover:text-white' : 'bg-blue-50 text-blue-500 group-hover:bg-blue-500 group-hover:text-white'}`}>
                       {room.isAi ? <Bot size={20} /> : <MessageSquare size={20} />}
                     </span>
-                    <span className="truncate flex-1 pr-2 leading-tight">{room.topic}</span>
-                  </h3>
+                    <ScrollingTitle text={room.topic} className="font-bold text-base sm:text-lg text-gray-800" containerClass="flex-1" />
+                  </div>
                   
                   <div className="mt-4 ml-12 sm:ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
                     {roomRecentMsgs.length > 0 ? (
@@ -607,10 +658,21 @@ const App = () => {
     );
   }
 
-  // 👇 ルーム内画面（全体を overflow-x-hidden にして横スクロールを防ぐ）
+  // 👇 ルーム内画面
   return (
     <div className="flex flex-col h-screen w-full overflow-x-hidden bg-[#F0F4F8] font-sans relative" onClick={() => setActiveReactionMsgId(null)}>
       
+      {/* 👇 スクロールアニメーション用のスタイルをここにも追加 */}
+      <style>{`
+        @keyframes scroll-text {
+          0% { transform: translateX(0%); }
+          100% { transform: translateX(-100%); }
+        }
+        .animate-scroll-text {
+          animation: scroll-text 15s linear infinite;
+        }
+      `}</style>
+
       {zoomedImage && (
         <div 
           className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in"
@@ -627,14 +689,14 @@ const App = () => {
         </div>
       )}
 
-      {/* 👇 ヘッダーのレイアウト崩れ（横に押し広げられる問題）を修正 */}
       <header className="bg-white/80 backdrop-blur-md p-3 sm:p-4 px-3 sm:px-6 flex items-center shadow-sm sticky top-0 z-30 border-b border-white w-full">
         <div className="flex items-center gap-2 sm:gap-4 w-full min-w-0">
-          <button onClick={() => setCurrentRoom(null)} className="shrink-0 hover:bg-blue-50 text-blue-500 p-2 sm:p-3 rounded-full transition-colors">
+          <button onClick={() => leaveRoom()} className="shrink-0 hover:bg-blue-50 text-blue-500 p-2 sm:p-3 rounded-full transition-colors">
             <ArrowLeft size={24} />
           </button>
           <div className="flex-1 min-w-0 flex flex-col justify-center pr-2">
-            <h2 className="font-bold text-base sm:text-lg text-gray-800 leading-tight truncate w-full">{currentRoom.topic}</h2>
+            {/* 👇 ルーム内ヘッダーにも自動スクロールを適用 */}
+            <ScrollingTitle text={currentRoom.topic} className="font-bold text-base sm:text-lg text-gray-800 leading-tight" containerClass="w-full" />
             <span className="text-[10px] text-blue-400 font-bold flex items-center gap-1 mt-0.5">
               <Users size={12} /> 会話中
             </span>
