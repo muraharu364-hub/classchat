@@ -25,14 +25,14 @@ import {
   Trash2, Plus, MessageSquare, ArrowLeft, Users, Lock, 
   Sparkles, Heart, Bot, Info, Bell, Reply, X,
   ChevronLeft, ChevronRight, Calendar, Smile, 
-  ImagePlus, XCircle, Loader2, Pin // 👈 Pinアイコンを追加
+  ImagePlus, XCircle, Loader2, Pin, MessageCircle // 👈 アイコン変更
 } from 'lucide-react';
 
 // ==========================================
 // 👇 ここにあなたのFirebase設定を貼り付けてください
 // ==========================================
 const manualConfig = {
-    apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
+  apiKey: "AIzaSyATsr01BJ6RihOW5SUhW4aXfx7SOdaxSd0",
   authDomain: "classhub-d8c5f.firebaseapp.com",
   projectId: "classhub-d8c5f",
   storageBucket: "classhub-d8c5f.firebasestorage.app",
@@ -65,6 +65,7 @@ try {
   console.error("Firebase Init Error:", e);
 }
 
+// データ保護のため内部IDはあえて変更していません
 const appId = isConfigValid(manualConfig) 
   ? 'class-hub-production' 
   : (typeof __app_id !== 'undefined' ? __app_id.replace(/[\/\.]/g, '_') : 'class-hub-production');
@@ -83,6 +84,7 @@ const aiTopics = [
 ];
 
 const appUpdates = [
+  { id: 4, date: "2/18", text: "アプリ名が「ChaChat」に変わりました！🍵" },
   { id: 1, date: "2/13", text: "重要なルームを「ピン留め📌」できるようになりました！" },
   { id: 2, date: "2/13", text: "長いルーム名が自動でスクロールするようになりました！↔️" },
   { id: 3, date: "2/13", text: "スマホの「戻る」ボタンで退室できるようになりました！📱" }
@@ -290,7 +292,6 @@ const App = () => {
     return todayStr; 
   };
 
-  // 👇 固定ルームと、それ以外（日付別）のルームを分ける
   const pinnedRooms = rooms.filter(room => room.isPinned);
   const dateSpecificRooms = rooms.filter(room => !room.isPinned && getRoomDateStr(room) === selectedDateStr);
 
@@ -330,7 +331,7 @@ const App = () => {
         createdBy: user.displayName || "ゲスト",
         creatorId: user.uid,
         createdAt: serverTimestamp(),
-        isPinned: false // 初期状態はピン留めなし
+        isPinned: false
       });
       setSelectedDate(new Date()); 
       enterRoom({ id: docRef.id, topic: newRoomTopic });
@@ -437,12 +438,10 @@ const App = () => {
     }
   };
 
-  // 👇 ピン留めを切り替える関数
   const togglePin = async (e, room) => {
-    e.stopPropagation(); // ルーム入室を防ぐ
+    e.stopPropagation();
     try {
       const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', room.id);
-      // isPinned の状態を反転させる
       await updateDoc(roomRef, { isPinned: !room.isPinned });
     } catch (err) {
       console.error(err);
@@ -467,9 +466,9 @@ const App = () => {
       <div className="h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-100 via-indigo-50 to-purple-100 p-6 font-sans w-full overflow-hidden">
         <div className="bg-white/80 backdrop-blur-xl p-10 rounded-[3rem] shadow-[0_20px_60px_rgba(100,149,237,0.2)] w-full max-w-sm text-center border-4 border-white">
           <div className="bg-gradient-to-tr from-blue-400 to-indigo-400 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-200">
-            <Heart size={48} className="text-white fill-white animate-pulse" />
+            <MessageCircle size={48} className="text-white fill-white animate-pulse" />
           </div>
-          <h1 className="text-4xl font-black mb-2 text-gray-800 tracking-tight">ClassHub</h1>
+          <h1 className="text-4xl font-black mb-2 text-gray-800 tracking-tight">ChaChat</h1>
           <p className="text-gray-500 mb-6 font-bold text-sm">クラスのみんなとつながろう✨</p>
           
           <div className="bg-blue-50 border-l-4 border-blue-400 p-3 mb-6 rounded-r-xl text-left shadow-sm">
@@ -519,8 +518,8 @@ const App = () => {
 
         <header className="bg-white/80 backdrop-blur-md p-5 px-6 flex justify-between items-center sticky top-0 z-20 shadow-sm border-b border-white">
           <div className="flex items-center gap-2 font-black text-xl text-gray-800">
-            <span className="bg-blue-100 p-2 rounded-full text-blue-500"><Hash size={20} /></span>
-            ClassHub
+            <span className="bg-blue-100 p-2 rounded-full text-blue-500"><MessageCircle size={20} /></span>
+            ChaChat
           </div>
           <button onClick={() => signOut(auth)} className="bg-gray-100 hover:bg-gray-200 text-gray-500 p-3 rounded-full transition-colors">
             <LogOut size={20} />
@@ -545,7 +544,7 @@ const App = () => {
             </ul>
           </div>
 
-          {/* 👇 ピン留めされたルームのセクション */}
+          {/* 👇 ピン留めされたルーム */}
           {pinnedRooms.length > 0 && (
             <div className="mb-8">
               <h2 className="text-sm font-bold text-gray-500 mb-3 flex items-center gap-2 ml-1">
@@ -565,7 +564,6 @@ const App = () => {
                       onClick={() => enterRoom(room)} 
                       className="group bg-white p-5 sm:p-6 rounded-[2.5rem] shadow-md border-2 border-red-100 hover:border-red-200 hover:shadow-xl cursor-pointer transition-all relative overflow-hidden flex flex-col justify-center w-full"
                     >
-                      {/* 背景装飾 */}
                       <div className="absolute top-0 right-0 w-24 h-24 bg-red-50 rounded-bl-[4rem] -mr-8 -mt-8 group-hover:scale-110 transition-transform"></div>
                       
                       <div className="flex items-center gap-3 relative z-10 w-full mb-1">
@@ -574,11 +572,10 @@ const App = () => {
                         </span>
                         <ScrollingTitle text={room.topic} className="font-bold text-base sm:text-lg text-gray-800" containerClass="flex-1" />
                         
-                        {/* 👇 固定解除ボタン（作成者のみ） */}
                         {room.creatorId === user.uid && (
                           <button 
                             onClick={(e) => togglePin(e, room)}
-                            className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-full transition-all"
+                            className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-full transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
                             title="固定を解除"
                           >
                             <Pin size={16} className="fill-red-400" />
@@ -586,7 +583,6 @@ const App = () => {
                         )}
                       </div>
                       
-                      {/* メッセージプレビュー */}
                       <div className="mt-4 ml-12 sm:ml-14 bg-gray-50/80 rounded-2xl p-3 space-y-1.5 border border-gray-100 relative z-10">
                         {roomRecentMsgs.length > 0 ? (
                           roomRecentMsgs.map(msg => (
@@ -608,11 +604,14 @@ const App = () => {
             </div>
           )}
 
-          {/* 👇 日付別ルームナビゲーション */}
           <div className="flex justify-between items-center mb-6 bg-white p-2 rounded-[2rem] shadow-sm border border-blue-50 relative z-10">
-            <button onClick={() => changeDate(-1)} className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95">
+            <button 
+              onClick={() => changeDate(-1)} 
+              className="p-3 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all active:scale-95"
+            >
               <ChevronLeft size={24} />
             </button>
+            
             <div className="flex flex-col items-center justify-center pointer-events-none">
               <div className="flex items-center gap-2 text-gray-800 font-black text-base">
                 <Calendar size={18} className="text-blue-500" />
@@ -622,7 +621,12 @@ const App = () => {
                 {selectedDateStr.replace(/-/g, '/')}
               </span>
             </div>
-            <button onClick={() => changeDate(1)} disabled={selectedDateStr === todayStr} className={`p-3 rounded-full transition-all active:scale-95 ${selectedDateStr === todayStr ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}>
+
+            <button 
+              onClick={() => changeDate(1)} 
+              disabled={selectedDateStr === todayStr}
+              className={`p-3 rounded-full transition-all active:scale-95 ${selectedDateStr === todayStr ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-blue-600 hover:bg-blue-50'}`}
+            >
               <ChevronRight size={24} />
             </button>
           </div>
@@ -683,8 +687,7 @@ const App = () => {
                     </span>
                     <ScrollingTitle text={room.topic} className="font-bold text-base sm:text-lg text-gray-800" containerClass="flex-1" />
                     
-                    {/* 👇 ピン留めボタン（作成者のみ） */}
-                    {room.creatorId === user.uid && (
+                    {room.creatorId === user.uid && !room.isAi && (
                       <button 
                         onClick={(e) => togglePin(e, room)}
                         className="text-gray-300 hover:text-red-400 bg-white hover:bg-red-50 p-2 rounded-full transition-all border border-gray-100 opacity-0 group-hover:opacity-100"
